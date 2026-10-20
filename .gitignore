@@ -1,0 +1,35 @@
+# Local state and credentials
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# Rebuildable outputs; commit the concise results/RESULTS.md summary instead.
+results/*
+!results/RESULTS.md
+!results/VERIFICATION.md
+!results/verification_hashes.json
+*_cache/
+*_files/
+work/
+
+# renv package libraries and machine-specific state
+renv/library/
+renv/staging/
+renv/cache/
+renv/local/
+renv/lock/
+renv/cellar/
+
+# Rendering intermediates
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.knit.md
+*.utf8.md

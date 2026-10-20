@@ -1,0 +1,11 @@
+# Consistent source formatting across Linux and Windows.
+* text=auto
+*.R text eol=lf
+*.Rmd text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.lock text eol=lf
+*.pdf binary
+*.png binary
+*.Rdata binary
+*.rds binary

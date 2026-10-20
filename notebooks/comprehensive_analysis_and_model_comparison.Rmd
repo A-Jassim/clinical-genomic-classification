@@ -1,0 +1,76 @@
+---
+title: "Clinical and genomic classification: analysis and comparison"
+author: "Akram HALIMI and Haron MATAOUI"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 9, fig.height = 5)
+if (!file.exists("results/analysis.rds")) stop("From the repository root, run Rscript scripts/run_analysis.R, then scripts/render_reports.R.")
+analysis <- readRDS("results/analysis.rds")
+source("R/modeling.R")
+source("R/pipeline.R")
+```
+
+# Question and data
+
+We classify observed vital status (`Alive = 0`, `Dead = 1`) using clinical features, gene expression, or their combination. This is an academic classification experiment, not a validated time-to-event model.
+
+The raw dataset supplies **`r analysis$data_audit$aligned_patients` unique aligned patients** and **`r analysis$data_audit$genes` genes** after identity alignment and exclusion of unknown outcomes. Multiple samples belonging to one patient are kept in a single partition by retaining the first sample in input order.
+
+```{r counts}
+knitr::kable(with(analysis$partitions, table(partition, actual)), caption = "Patient counts; 0 = Alive, 1 = Dead")
+```
+
+# Training-data exploration
+
+These summaries are computed from training observations only. Missing numeric values are imputed using training medians; categorical levels and rare-category handling are learned from training observations. Follow-up duration, treatment response, identifiers, and the outcome are excluded from predictors.
+
+```{r missingness}
+missing <- analysis$missingness[order(analysis$missingness$missing_fraction), ]
+par(mar = c(5, 11, 3, 1))
+barplot(missing$missing_fraction * 100, names.arg = missing$feature, horiz = TRUE, las = 1,
+        xlab = "Missing values (%)", main = "Missingness in training clinical features", col = "steelblue")
+```
+
+# Validation protocol
+
+A fixed seed (`r analysis$config$seed`) reserves 20% of unique patients as a stratified test set. The remaining patients undergo `r analysis$config$folds`-fold stratified validation. Every fold independently fits imputation, categorical encoding, variance filtering, and gene screening. The combined models use the top `r analysis$config$top_genes` genes ranked by Welch-test p-values from that fold's training observations. Glmnet standardizes predictors using its fitting observations only.
+
+The lambda value and model family are selected by pooled out-of-fold AUC. Each decision threshold maximizes Youden's index on out-of-fold training predictions. Model choice and thresholds are frozen before test evaluation. Validation scores are tuning scores and are not unbiased final performance estimates.
+
+```{r validation}
+knitr::kable(analysis$validation, digits = 4, caption = "Training-only parameter and threshold selection")
+```
+
+# Held-out test comparison
+
+The model selected using training validation is **`r analysis$selected_model`**. All candidates are evaluated on the same held-out patients for transparency; the test ranking is not used to select a replacement model.
+
+```{r comparison}
+knitr::kable(analysis$metrics[, c("model", "selected_by_validation", "auc", "accuracy", "sensitivity", "specificity", "precision", "f1")], digits = 4)
+```
+
+```{r roc}
+plot_roc_comparison(analysis)
+```
+
+# Interpretation and limitations
+
+- High accuracy can coexist with poor detection of the minority `Dead` class. Read AUC, sensitivity, specificity, and the confusion matrix together.
+- The fixed 80/20 split and internal validation do not replace external validation; uncertainty is substantial with relatively few deaths.
+- The input lacks a documented baseline measurement time for every clinical feature. Excluding obvious follow-up features reduces leakage risk but cannot establish that every remaining feature would be available prospectively.
+- Clinical-only, gene-only, and screened combined models answer related but distinct questions. The selected gene list is not a validated biological biomarker panel.
+- Historical PDF metrics were produced by earlier exploratory workflows and are not reproduced or reused as the results of this corrected pipeline.
+
+# Reproduction record
+
+The pipeline exports patient assignments, validation folds, out-of-fold predictions, test predictions, fold-specific gene lists, fitted models, and session information. The input MD5 is **`r analysis$input_md5`**.
+
+```{r versions}
+knitr::kable(data.frame(package = names(analysis$package_versions), version = unname(analysis$package_versions)))
+```

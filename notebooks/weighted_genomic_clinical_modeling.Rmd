@@ -1,0 +1,70 @@
+---
+title: "Weighted genomic and clinical modeling"
+author: "Akram HALIMI and Haron MATAOUI"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 8, fig.height = 5)
+if (!file.exists("results/analysis.rds")) stop("Run scripts/run_analysis.R, then scripts/render_reports.R from the repository root.")
+analysis <- readRDS("results/analysis.rds")
+source("R/modeling.R")
+source("R/pipeline.R")
+model_name <- analysis$selected_combined_model
+summary <- analysis$metrics[analysis$metrics$model == model_name, ]
+predictions <- analysis$predictions[analysis$predictions$model == model_name, ]
+```
+
+# Purpose
+
+This report examines the combined clinical/genomic candidate selected using training validation: **`r model_name`**. It uses the same fitted pipeline, patients, and outputs as the comprehensive report; no alternative split or independent copy of the modeling code is used.
+
+# Feature selection and weighting
+
+The combined candidates use clinical features plus a training-selected panel of `r length(analysis$selected_genes)` genes. Each validation fold independently ranks genes from its own training patients. The final panel is then fitted on the full training partition only. These panels are based on univariate screening, not claimed to be a relaxed-Lasso estimator or a clinically validated signature.
+
+Observation weights are inverse class frequencies learned within the fitting partition. Ridge (`alpha = 0`), Lasso (`alpha = 1`), and Elastic Net (`alpha = 0.5`) are compared. The training-selected alpha is **`r summary$alpha`**, and lambda is **`r signif(summary$lambda, 4)`**.
+
+```{r combined-validation}
+knitr::kable(analysis$validation[analysis$validation$features == "combined", ], digits = 4)
+```
+
+# Frozen decision threshold
+
+The threshold **`r round(summary$threshold, 4)`** was selected using out-of-fold training predictions, before test outcomes were inspected. It maximizes Youden's index; no test-set adjustment is made to force 100% sensitivity.
+
+```{r metrics}
+knitr::kable(summary[, c("auc", "accuracy", "sensitivity", "specificity", "precision", "f1", "tp", "tn", "fp", "fn")], digits = 4)
+```
+
+```{r confusion}
+knitr::kable(table(Actual = factor(predictions$actual, levels = 0:1, labels = c("Alive", "Dead")),
+                   Predicted = factor(predictions$predicted, levels = 0:1, labels = c("Alive", "Dead"))))
+```
+
+```{r roc}
+plot_roc_comparison(analysis, model_name)
+```
+
+```{r score-distribution}
+boxplot(probability ~ factor(actual, levels = 0:1, labels = c("Alive", "Dead")), data = predictions,
+        ylab = "Predicted probability of Dead", xlab = "Observed vital status",
+        col = c("lightblue", "salmon"), ylim = c(0, 1))
+abline(h = summary$threshold, col = "darkgreen", lty = 2)
+```
+
+# Selected gene panel
+
+The final training-selected gene panel is saved in `results/selected_genes.csv`. It is an exploratory feature set, not evidence of causal effects or clinical utility.
+
+```{r genes}
+knitr::kable(data.frame(gene = analysis$selected_genes))
+```
+
+# Limitations
+
+The final test set is independent of fitting and tuning, but the study still uses a single internal split. No external cohort or prospective clinical evaluation is available. Correcting the original workflow changes the estimates; historical report values must not be substituted for these newly computed results.

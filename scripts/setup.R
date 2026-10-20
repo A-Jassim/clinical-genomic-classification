@@ -1,0 +1,12 @@
+#!/usr/bin/env Rscript
+args <- commandArgs(trailingOnly = FALSE)
+script <- sub("^--file=", "", args[grepl("^--file=", args)])
+root <- normalizePath(file.path(dirname(script), ".."), mustWork = TRUE)
+if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv", repos = "https://cloud.r-project.org")
+if (!file.exists(file.path(root, "renv.lock"))) stop("renv.lock is missing; restore it from the repository.")
+renv::restore(project = root, prompt = FALSE)
+renv::load(project = root)
+required <- c("glmnet", "jsonlite", "rmarkdown", "knitr", "S4Vectors")
+if (!all(vapply(required, requireNamespace, logical(1), quietly = TRUE))) stop("Dependencies are incomplete after restoration.")
+if (!rmarkdown::pandoc_available()) message("Install Pandoc to render HTML reports; model fitting does not require it.")
+message("The recorded package environment is ready.")
